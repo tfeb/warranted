@@ -1,0 +1,10 @@
+# Ignore emacs backups & auto save files
+*~
+\#*\#
+.\#*
+
+# Ignore the binary
+/warranted
+
+# Ignore Racket compiled files
+compiled/
