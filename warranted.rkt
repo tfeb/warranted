@@ -38,7 +38,7 @@
                   [exn:fail:bad-wct-spec?
                    (λ (e)
                      (fprintf (current-error-port)
-                              "~A in ~A~"
+                              "~A in ~A~%"
                               (exn-message e)
                               (exn:fail:bad-wct-spec-source e))
                      (exit 2))]
