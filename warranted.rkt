@@ -18,16 +18,24 @@
 
 (define (run #:wct (wct (read-wct))
              #:args (argv (current-command-line-arguments)))
-  (define command-list (vector->list argv))
-  (cond [(not (null? command-list))
-         (unless (slist-matches-wct? command-list wct)
-           (die "unwarranted command line ~S" command-list)
-         (match-let ([(cons command arguments) command-list])
-           (unless (absolute-path? command)
-             (die "command is not absolute: ~S" command))
-           (exit (apply system*/exit-code command arguments))))]
-        [else
-         (die "Usage: warranted command arg ...")]))
+  (let ([command-line (vector->list argv)])
+    (cond [(not (null? command-line))
+           (let* ([command (first command-line)]
+                  [effective-command-line
+                   (cons (path->string (find-executable-path command))
+                         (rest command-line))]
+                  [executable (first effective-command-line)])
+             (unless executable
+               (die "no executable for ~A" command))
+             (unless (slist-matches-wct? effective-command-line wct)
+               (die "unwarranted command line ~S (from ~S)"
+                    effective-command-line command-line))
+             (unless (absolute-path? executable)
+               (die "command is not absolute: ~S (from ~S)"
+                    executable command))
+             (exit (apply system*/exit-code effective-command-line)))]
+          [else
+           (die "Usage: warranted command arg ...")])))
 
 (module+ main
   (with-handlers ([exn:fail:death?
