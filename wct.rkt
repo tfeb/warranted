@@ -2,6 +2,38 @@
 
 ;;;; Warranted command trees & their representation in files
 ;;;
+;;; A warranted command tree (WCT) is a list of nodes.
+;;; A node is either the empty list, or it is a cons of a name and a WCT.
+;;; A node's name (key) is either a string, the symbol * or the symbol **.
+;;; * matches one component, ** matches zero or more components.
+;;;
+;;; A list of strings (from a command line), known as an slist in this code
+;;;  is matched against a WCT.
+;;; If the list is null then it matches the empty WCT, a WCT with an empty
+;;;  child node, or a WCT with a child node whose name is ** and whose WCT is
+;;;  null (the last case makes sure that this is really the end of the WCT).
+;;; If the list is not null it matches if its first element matches and the
+;;;  remaining elements match the WCT which is the child of the matched node.
+;;; An element matches a node if the node's name is *, if the node's name is a
+;;;  string which is equal to the element, or if the node's name is ** and
+;;;  the rest of the slist matches either a WCT whose only node is the node
+;;;  that matched, or if it matches the WCT of the node.
+;;;
+;;; WCTs are read from files in two forms: as WCTs or as command specifications
+;;;  which are turned into WCTs.
+;;; A command specification is just a list containing a command and its
+;;;  arguments, where any entry can also be * or **.
+;;; Each file has a single form which can contain as many specifications or WCTs
+;;;  as you like.  There's no fancy merging of the tops of trees.
+;;;
+;;; The default set of config files is "/etc/warranted.rktd",
+;;;  "/usr/local/etc/warranted.rktd" and "~/etc/warranted.rktd": all of these
+;;;  are checked and if they exist read into a single WCT.
+;;;
+;;; Commands, but not their arguments, are matched against the absolute path of
+;;;  the executable: so 'cat foo' would turn into '/bin/cat foo' for instance.
+;;;
+
 
 (require "low.rkt")
 
@@ -9,8 +41,10 @@
           (slist-matches-wct?
            (-> valid-slist? valid-wct? boolean?))
           (warranted-commands-files
-           (->* () ((listof (and/c path? absolute-path?)))
-                (listof (and/c path? absolute-path?))))
+           (case->
+            (-> (listof (and/c path? absolute-path?)))
+            (-> (listof (and/c path? absolute-path?))
+                void?)))
           (read-wct
            (->* () ((listof (and/c path? absolute-path?))) valid-wct?)))
          (struct-out exn:fail:bad-wct-spec))

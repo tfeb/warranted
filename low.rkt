@@ -5,15 +5,17 @@
 
 (provide (contract-out
           (complain
-           (->* (string?) #:rest any/c any))
+           (->* (string?) #:rest any/c void?))
           (mutter
-           (->* (string?) #:rest any/c any))
+           (->* (string?) #:rest any/c void?))
           (warranted-quiet?
            (->* () (any/c) any))
           (debug
-           (->* (string?) #:rest any/c any))
+           (->* (string?) #:rest any/c void?))
           (warranted-debug?
-           (->* () (any/c) any))))
+           (case->
+            (-> boolean?)
+            (-> boolean? void?)))))
 
 ;;; Verbosity control & complaining
 ;;;
