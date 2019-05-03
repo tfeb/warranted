@@ -42,13 +42,13 @@
            (-> valid-slist? valid-wct? boolean?))
           (warranted-commands-files
            (case->
-            (-> (-> (listof (and/c path? absolute-path?))))
-            (-> (-> (listof (and/c path? absolute-path?)))
+            (-> (-> (listof (and/c path-string? absolute-path?))))
+            (-> (-> (listof (and/c path-string? absolute-path?)))
                 void?)))
           (default-warranted-commands-files
-            (-> (listof (and/c path? absolute-path?))))
+            (-> (listof (and/c path-string? absolute-path?))))
           (read-wct
-           (->* () ((listof (and/c path? absolute-path?))) valid-wct?)))
+           (->* () ((listof (and/c path-string? absolute-path?))) valid-wct?)))
          (struct-out exn:fail:bad-wct-spec)
          (struct-out exn:fail:bad-metafile))
 
@@ -252,7 +252,7 @@
               (cond [wcfs
                      (unless (and (list? wcfs)
                                   (andmap (λ (wcf)
-                                            (and (path? wcf)
+                                            (and (path-string? wcf)
                                                  (absolute-path? wcf)))
                                           wcfs))
                        (raise (make-exn:fail:bad-metafile
