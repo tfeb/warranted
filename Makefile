@@ -12,13 +12,16 @@ SOURCES = warranted.rkt wct.rkt
 BINDIR = /usr/local/bin
 
 
-.PHONY: clean install
+.PHONY: clean install test
 
-warranted: $(SOURCES)
+warranted: $(SOURCES) test
 	raco exe warranted.rkt
 
 install: warranted
 	install -C -v -m 555 $^ $(BINDIR)
+
+test:
+	raco test $(SOURCES)
 
 clean:
 	rm -f warranted

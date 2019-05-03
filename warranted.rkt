@@ -3,12 +3,20 @@
 
 ;;; Warranted commands
 ;;;
+;;; This needs rethinking about when it dies (should run raise exceptions?)
+;;; and more generally about verbosity &c
+;;;
+;;; It also needs more tests
+;;;
 
 (require "wct.rkt"
          (only-in racket/system
                   system*/exit-code)
          (rename-in racket
                     (exit really-exit)))
+
+(module+ test
+  (require rackunit))
 
 (struct exn:fail:death exn:fail ()
   #:extra-constructor-name make-exn:fail:death
@@ -19,23 +27,51 @@
           (apply format fmt args)
           (current-continuation-marks))))
 
+;;; Verbosity control & complaining
+;;;
+(define warranted-quiet?
+  (make-parameter (if (getenv "WARRANTED_QUIET") #t #f)))
+
+(define (mutter fmt . args)
+  (unless (warranted-quiet?)
+    (apply fprintf (current-error-port) fmt args))
+  (void))
+
+(define (complain fmt . args)
+  (apply fprintf (current-error-port) fmt args)
+  (void))
+
 ;;; Exit control: I would like to be able to make this work so it knew
 ;;; whether it was running under DrRacket automatically.  Instead you can say
 ;;; WARRANTED_DEVELOPMENT=1 drracket ...
 ;;;
 (define warranted-development?
-  (make-parameter (if (getenv "WARRANTED_DEVELOPMENT")
-                      #f #t)))
+  (make-parameter (if (getenv "WARRANTED_DEVELOPMENT") #t #f)))
 
 (define (exit code)
   (cond [(warranted-development?)
-         (really-exit code)]
+         (mutter "[would exit with ~S]~%" code)
+         code]
         [else
-         (fprintf (current-error-port) "[would exit with ~S]~%" code)
-         code]))
+         (really-exit code)]))
+
+;;; Control whether we actually run commands
+;;;
+(define warranted-pretend?
+  (make-parameter (if (getenv "WARRANTED_PRETEND") #t #f)))
+
+(define (run-command command-line #:pretend-exit-code (pretend-exit-code 0))
+  (cond [(warranted-pretend?)
+         (mutter "[would run ~S]~%" command-line)
+         pretend-exit-code]
+        [else
+         (apply system*/exit-code command-line)]))
 
 (define (run #:wct (wct (read-wct))
-             #:args (argv (current-command-line-arguments)))
+             #:argv (argv (current-command-line-arguments))
+             #:pretend-exit-code (pretend-exit-code 0))
+  ;; Run a warranted command.  This either returns the exit code of the command,
+  ;; or raises an exception.
   (let ([command-line (vector->list argv)])
     (cond [(not (null? command-line))
            (define command (first command-line))
@@ -50,26 +86,40 @@
            (unless (absolute-path? executable)
              (die "command is not absolute: ~S (from ~S)"
                   executable command))
-           (exit (apply system*/exit-code effective-command-line))]
+           (exit (run-command effective-command-line
+                              #:pretend-exit-code pretend-exit-code))]
           [else
            (die "Usage: warranted command arg ...")])))
+
+(module+ test
+  (parameterize ([warranted-development? #t]
+                 [warranted-pretend? #t]
+                 [warranted-quiet? #t])
+    (let ([wct '(("/bin/cat" ("foo" ())
+                             ("bar" ())))])
+      (check-eqv? (run #:wct wct
+                       #:argv '#("cat" "foo"))
+                  0)
+      (check-eqv? (run #:wct wct
+                       #:argv '#("cat" "bar"))
+                  0)
+      (check-exn exn:fail:death?
+                 (thunk (run #:wct wct
+                             #:argv '#("cat" "fish")))))))
 
 (module+ main
   (with-handlers ([exn:fail:death?
                    (λ (e)
-                     (fprintf (current-error-port)
-                              "~A~%" (exn-message e))
+                     (complain "~A~%" (exn-message e))
                      (exit 1))]
                   [exn:fail:bad-wct-spec?
                    (λ (e)
-                     (fprintf (current-error-port)
-                              "~A in ~A~%"
-                              (exn-message e)
-                              (exn:fail:bad-wct-spec-source e))
+                     (complain "~A in ~A~%"
+                               (exn-message e)
+                               (exn:fail:bad-wct-spec-source e))
                      (exit 2))]
                   [exn?
                    (λ (e)
-                     (fprintf (current-error-port)
-                              "mutant death~% ~A~%" (exn-message e))
+                     (complain "mutant death~% ~A~%" (exn-message e))
                      (exit 3))])
     (run)))
