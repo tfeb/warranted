@@ -1,3 +1,4 @@
+#!/usr/bin/env racket
 #lang racket
 
 ;;; Warranted commands
@@ -5,7 +6,9 @@
 
 (require "wct.rkt"
          (only-in racket/system
-                  system*/exit-code))
+                  system*/exit-code)
+         (rename-in racket
+                    (exit really-exit)))
 
 (struct exn:fail:death exn:fail ()
   #:extra-constructor-name make-exn:fail:death
@@ -15,6 +18,21 @@
   (raise (make-exn:fail:death
           (apply format fmt args)
           (current-continuation-marks))))
+
+;;; Exit control: I would like to be able to make this work so it knew
+;;; whether it was running under DrRacket automatically.  Instead you can say
+;;; WARRANTED_DEVELOPMENT=1 drracket ...
+;;;
+(define warranted-development?
+  (make-parameter (if (getenv "WARRANTED_DEVELOPMENT")
+                      #f #t)))
+
+(define (exit code)
+  (cond [(warranted-development?)
+         (really-exit code)]
+        [else
+         (fprintf (current-error-port) "[would exit with ~S]~%" code)
+         code]))
 
 (define (run #:wct (wct (read-wct))
              #:args (argv (current-command-line-arguments)))
