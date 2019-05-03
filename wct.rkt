@@ -42,12 +42,15 @@
            (-> valid-slist? valid-wct? boolean?))
           (warranted-commands-files
            (case->
-            (-> (listof (and/c path? absolute-path?)))
-            (-> (listof (and/c path? absolute-path?))
+            (-> (-> (listof (and/c path? absolute-path?))))
+            (-> (-> (listof (and/c path? absolute-path?)))
                 void?)))
+          (default-warranted-commands-files
+            (-> (listof (and/c path? absolute-path?))))
           (read-wct
            (->* () ((listof (and/c path? absolute-path?))) valid-wct?)))
-         (struct-out exn:fail:bad-wct-spec))
+         (struct-out exn:fail:bad-wct-spec)
+         (struct-out exn:fail:bad-metafile))
 
 (module+ test
   (require rackunit))
@@ -220,17 +223,52 @@
   #:extra-constructor-name make-exn:fail:bad-wct-spec
   #:transparent)
 
-(define warranted-commands-files
-  (make-parameter
-   (let* ([home (find-system-path 'home-dir)]
-          [root (first (explode-path home))]
-          [wcf "warranted.rktd"])
-     (list
-      (build-path root "etc" wcf)
-      (build-path root "usr" "local" "etc" wcf)
-      (build-path home "etc" wcf)))))
+(struct exn:fail:bad-metafile exn:fail (wcfs source)
+  #:extra-constructor-name make-exn:fail:bad-metafile
+  #:transparent)
 
-(define (read-wct (files (warranted-commands-files)))
+(define (default-warranted-commands-files)
+  ;; This is the default returner of files containing WCT specifications.
+  ;; it looks for metafiles and if it finds any reads a list from the first
+  ;; one (only).  Otherwise it returns the default list of files.
+  ;; Because it only reads the first metafile it finds, if you create
+  ;; /etc/warranted-meta.rktd, then you can control the list of files
+  ;; without allowing the user to do so.
+  (let* ([home (find-system-path 'home-dir)]
+         [root (first (explode-path home))]
+         [wcf "warranted.rktd"]
+         [metaf "warranted-meta.rktd"])
+    (define (locations file)
+      (list (build-path root "etc" file)
+            (build-path root "usr" "local" "etc" file)
+            (build-path home "etc" file)))
+    (let search ([metafiles (locations metaf)])
+      (if (null? metafiles)
+          (locations wcf)
+          (match-let ([(cons metafile more-metas) metafiles])
+            (let ([wcfs (and (file-exists? metafile)
+                             (call-with-default-reading-parameterization
+                              (thunk (call-with-input-file metafile read))))])
+              (cond [wcfs
+                     (unless (and (list? wcfs)
+                                  (andmap (λ (wcf)
+                                            (and (path? wcf)
+                                                 (absolute-path? wcf)))
+                                          wcfs))
+                       (raise (make-exn:fail:bad-metafile
+                               "bad file list from metafile"
+                               (current-continuation-marks)
+                               wcfs metafile)))
+                     wcfs]
+                    [else
+                     (search more-metas)])))))))
+
+(define warranted-commands-files
+  ;; This is a parameter whose value is a function which should return
+  ;; the list of files with WCT specifications.
+  (make-parameter default-warranted-commands-files))
+
+(define (read-wct (files ((warranted-commands-files))))
   (for/fold ([wct '()]) ([file files])
     (append wct (if (file-exists? file)
                     (let ([spec (call-with-default-reading-parameterization

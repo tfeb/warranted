@@ -105,6 +105,12 @@
                                (exn-message e)
                                (exn:fail:bad-wct-spec-source e))
                      (exit 2))]
+                  [exn:fail:bad-metafile?
+                   (λ (e)
+                     (complain "~A ~A~%"
+                               (exn-message e)
+                               (exn:fail:bad-metafile-source e))
+                     (exit 2))]
                   [exn?
                    (λ (e)
                      (complain "mutant death~% ~A~%" (exn-message e))
