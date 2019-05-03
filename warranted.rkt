@@ -20,20 +20,19 @@
              #:args (argv (current-command-line-arguments)))
   (let ([command-line (vector->list argv)])
     (cond [(not (null? command-line))
-           (let* ([command (first command-line)]
-                  [effective-command-line
-                   (cons (path->string (find-executable-path command))
-                         (rest command-line))]
-                  [executable (first effective-command-line)])
-             (unless executable
-               (die "no executable for ~A" command))
-             (unless (slist-matches-wct? effective-command-line wct)
-               (die "unwarranted command line ~S (from ~S)"
-                    effective-command-line command-line))
-             (unless (absolute-path? executable)
-               (die "command is not absolute: ~S (from ~S)"
-                    executable command))
-             (exit (apply system*/exit-code effective-command-line)))]
+           (define command (first command-line))
+           (define executable (find-executable-path command))
+           (unless executable
+             (die "no executable for ~A" command))
+           (define effective-command-line (cons (path->string executable)
+                                                (rest command-line)))
+           (unless (slist-matches-wct? effective-command-line wct)
+             (die "unwarranted command line ~S (from ~S)"
+                  effective-command-line command-line))
+           (unless (absolute-path? executable)
+             (die "command is not absolute: ~S (from ~S)"
+                  executable command))
+           (exit (apply system*/exit-code effective-command-line))]
           [else
            (die "Usage: warranted command arg ...")])))
 
@@ -53,6 +52,6 @@
                   [exn?
                    (λ (e)
                      (fprintf (current-error-port)
-                              "mutant death: ~A~%" (exn-message e))
+                              "mutant death~% ~A~%" (exn-message e))
                      (exit 3))])
     (run)))
