@@ -3,6 +3,8 @@
 ;;;; Warranted command trees & their representation in files
 ;;;
 
+(require "low.rkt")
+
 (provide (contract-out
           (slist-matches-wct?
            (-> valid-slist? valid-wct? boolean?))
@@ -23,8 +25,10 @@
          (valid-wct-node? node))))
 
 (define (valid-wct-node-name? name)
-  ;; node names are strings (for now)
-  (string? name))
+  ;; node names are strings or the two wildcard symbols
+  (or (string? name)
+      (eqv? name '*)
+      (eqv? name '**)))
 
 (define (valid-wct-node? node)
   ;; a node is either null, which matches
@@ -35,12 +39,13 @@
            (valid-wct? (cdr node)))))
 
 (module+ test
-  (for ([n (in-list '("foo" ""))])
+  (for ([n (in-list '("foo" "" * **))])
     (check-true (valid-wct-node-name? n)))
   (check-false (valid-wct-node-name? 'x))
 
   (check-true (valid-wct-node? '("x")))
   (check-false (valid-wct-node? '("x" "y")))
+  (check-true (valid-wct-node? '(*)))
 
   (check-true (valid-wct? '(("foo"))))
   (check-true (valid-wct? '()))
@@ -51,7 +56,7 @@
     (check-true (valid-wct? (list node)))))
 
 (define (valid-file-entry? entry)
-  ;; a file entry ie either a list of strings or a WCT node
+  ;; a file entry ie either a list of valid node names or a WCT node
   (or (and (list? entry)
            (andmap valid-wct-node-name? entry))
       (valid-wct-node? entry)))
@@ -76,6 +81,8 @@
 
 (module+ test
   (check-true (valid-file-entry? '("cat" "/etc/motd")))
+  (check-true (valid-file-entry? '("cat" *)))
+  (check-true (valid-file-entry? '("cat" * **)))
   (check-true (valid-file-entries? '(("echo" "hi")
                                      ("echo")
                                      ("cp" "foo" "bar"))))
@@ -109,16 +116,43 @@
 (define wct-node-children cdr)
 
 (define (slist-matches-wct? slist wct)
+  ;; does an slist match a WCT?
+  (debug "match ~S to ~S~%" slist wct)
   (if (null? slist)
-      (or (null? wct)
-          (ormap wct-node-null? wct))
+      ;; the empty list matches if ...
+      (or (null? wct) ; ... the tree is empty ...
+          (ormap (λ (node)
+                   (or (wct-node-null? node) ; ... a node is null ...
+                       ;; ... or it has a wild-inferiors key and has no children
+                       (and (eqv? (wct-node-key node) '**)
+                            (null? (wct-node-children node)))))
+                 wct))
+      ;; slist is not empty, it matches if one of the children matches
       (match-let ([(cons slfirst slrest) slist])
-        (for/or ([node (in-list wct)])
-          (and (not (wct-node-null? node))
-               (string=? slfirst (wct-node-key node))
-               (slist-matches-wct? slrest (wct-node-children node)))))))
+        (for/or ([node wct])
+          (and (not (wct-node-null? node)) ; null children don't match
+               (let ([key (wct-node-key node)])
+                 (case key
+                   [(*)
+                    ;; the wildcard key matches if the rest of the slist
+                    ;; matches the children of the node
+                    (slist-matches-wct? slrest (wct-node-children node))]
+                   [(**)
+                    ;; wild-inferiors key matches if either the rest of the
+                    ;; slist matches a WCT fabricated from this node,
+                    ;; or if it matches the children of this node
+                    (or (slist-matches-wct? slrest (list node))
+                        (slist-matches-wct? slrest (wct-node-children node)))]
+                   [else
+                    ;; otherwise the key is stringy and it matches if the
+                    ;; strings match & the rest of the slist matches the
+                    ;; children of this node
+                    (and (string=? slfirst key)
+                         (slist-matches-wct? slrest
+                                             (wct-node-children node)))])))))))
 
 (module+ test
+  ;; non-wildcard WCT tests
   (let ([wct/small '(("cat" ("foo")))]
         [wct/bigger '(("cat" ("foo" ())
                              ("bar")))]
@@ -130,7 +164,19 @@
     (check-false (slist-matches-wct? cb wct/small))
     (check-true (slist-matches-wct? cb wct/bigger))
     (check-false (slist-matches-wct? cff wct/small))
-    (check-false (slist-matches-wct? cff wct/bigger))))
+    (check-false (slist-matches-wct? cff wct/bigger)))
+
+  ;; wildcarded WCTs: there are not enough tests here
+  (let ([wct '(("cat" (** ("x"))
+                      ("fish" ("y"))
+                      ("bone")
+                      (* ("z"))))])
+    (check-true (slist-matches-wct? '("cat" "bone") wct))
+    (check-true (slist-matches-wct? '("cat" "fish" "y") wct))
+    (check-true (slist-matches-wct? '("cat" "fish" "x") wct))
+    (check-true (slist-matches-wct? '("cat" "fish" "bone" "x") wct))
+    (check-true (slist-matches-wct? '("cat" "fish" "z") wct))
+    (check-false (slist-matches-wct? '("cat" "fish" "bone" "z") wct))))
 
 
 ;;;; Reading WCTs from files
