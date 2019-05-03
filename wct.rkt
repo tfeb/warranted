@@ -244,12 +244,18 @@
             (build-path home "etc" file)))
     (let search ([metafiles (locations metaf)])
       (if (null? metafiles)
-          (locations wcf)
+          (let ([wcfs (locations wcf)])
+            (debug "[wct files from whole cloth~%~A]~%"
+                   (pretty-format wcfs))
+            wcfs)
           (match-let ([(cons metafile more-metas) metafiles])
+            (debug "[looking for metafile ~A]~%" metafile)
             (let ([wcfs (and (file-exists? metafile)
                              (call-with-default-reading-parameterization
                               (thunk (call-with-input-file metafile read))))])
               (cond [wcfs
+                     (debug "[wct files from ~A~%~A]~%"
+                            metafile (pretty-format wcfs))
                      (unless (and (list? wcfs)
                                   (andmap (λ (wcf)
                                             (and (path-string? wcf)
@@ -270,9 +276,12 @@
 
 (define (read-wct (files ((warranted-commands-files))))
   (for/fold ([wct '()]) ([file files])
+    (debug "[looking for wct file ~A]~%" file)
     (append wct (if (file-exists? file)
                     (let ([spec (call-with-default-reading-parameterization
                                  (thunk (call-with-input-file file read)))])
+                      (debug "[entries from ~A~%~A]~%"
+                             file (pretty-format spec))
                       (unless (valid-file-entries? spec)
                         (raise (make-exn:fail:bad-wct-spec
                                 "bad WCT spec"
