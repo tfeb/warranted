@@ -8,7 +8,7 @@
 ## $Format:(@:%H)$
 ###############################################################################
 
-SOURCES = warranted.rkt wct.rkt
+SOURCES = warranted.rkt wct.rkt low.rkt
 BINDIR = /usr/local/bin
 
 

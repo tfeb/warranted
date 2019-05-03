@@ -10,6 +10,7 @@
 ;;;
 
 (require "wct.rkt"
+         "low.rkt"
          (only-in racket/system
                   system*/exit-code)
          (rename-in racket
@@ -26,20 +27,6 @@
   (raise (make-exn:fail:death
           (apply format fmt args)
           (current-continuation-marks))))
-
-;;; Verbosity control & complaining
-;;;
-(define warranted-quiet?
-  (make-parameter (if (getenv "WARRANTED_QUIET") #t #f)))
-
-(define (mutter fmt . args)
-  (unless (warranted-quiet?)
-    (apply fprintf (current-error-port) fmt args))
-  (void))
-
-(define (complain fmt . args)
-  (apply fprintf (current-error-port) fmt args)
-  (void))
 
 ;;; Exit control: I would like to be able to make this work so it knew
 ;;; whether it was running under DrRacket automatically.  Instead you can say
