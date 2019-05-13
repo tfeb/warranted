@@ -14,7 +14,9 @@
          (only-in racket/system
                   system*/exit-code)
          (rename-in racket
-                    (exit really-exit)))
+                    (exit really-exit))
+         (only-in racket/cmdline
+                  command-line))
 
 (module+ test
   (require rackunit))
@@ -54,29 +56,33 @@
         [else
          (apply system*/exit-code command-line)]))
 
-(define (run #:wct (wct (read-wct))
-             #:argv (argv (current-command-line-arguments))
+(define me "warranted")
+(define usage
+  (format "usage: ~A [option...] command [argument ...] (~A -h for help)"
+          me me))
+
+(define (run (args (vector->list (current-command-line-arguments)))
+             #:wct (wct (read-wct))
              #:pretend-exit-code (pretend-exit-code 0))
   ;; Run a warranted command.  This either returns the exit code of the command,
   ;; or raises an exception.
-  (let ([command-line (vector->list argv)])
-    (cond [(not (null? command-line))
-           (define command (first command-line))
-           (define executable (find-executable-path command))
-           (unless executable
-             (die "no executable for ~A" command))
-           (define effective-command-line (cons (path->string executable)
-                                                (rest command-line)))
-           (unless (slist-matches-wct? effective-command-line wct)
-             (die "unwarranted command line ~S (from ~S)"
-                  effective-command-line command-line))
-           (unless (absolute-path? executable)
-             (die "command is not absolute: ~S (from ~S)"
-                  executable command))
-           (exit (run-command effective-command-line
-                              #:pretend-exit-code pretend-exit-code))]
-          [else
-           (die "Usage: warranted command arg ...")])))
+  (cond [(not (null? args))
+         (define command (first args))
+         (define executable (find-executable-path command))
+         (unless executable
+           (die "no executable for ~A" command))
+         (define effective-command-line (cons (path->string executable)
+                                              (rest args)))
+         (unless (slist-matches-wct? effective-command-line wct)
+           (die "unwarranted command line ~S (from ~S)"
+                effective-command-line args))
+         (unless (absolute-path? executable)
+           (die "command is not absolute: ~S (from ~S)"
+                executable command))
+         (exit (run-command effective-command-line
+                            #:pretend-exit-code pretend-exit-code))]
+        [else
+         (die usage)]))
 
 (module+ test
   (parameterize ([warranted-development? #t]
@@ -84,15 +90,16 @@
                  [warranted-quiet? #t])
     (let ([wct '(("/bin/cat" ("foo" ())
                              ("bar" ())))])
-      (check-eqv? (run #:wct wct
-                       #:argv '#("cat" "foo"))
+      (check-eqv? (run '("cat" "foo")
+                       #:wct wct)
                   0)
-      (check-eqv? (run #:wct wct
-                       #:argv '#("cat" "bar"))
+      (check-eqv? (run '("cat" "bar")
+                       #:wct wct)
                   0)
       (check-exn exn:fail:death?
-                 (thunk (run #:wct wct
-                             #:argv '#("cat" "fish")))))))
+                 (thunk (run '("cat" "fish")
+                             #:wct wct))))))
+
 
 (module+ main
   (with-handlers ([exn:fail:death?
@@ -115,4 +122,33 @@
                    (λ (e)
                      (complain "mutant death~% ~A~%" (exn-message e))
                      (exit 3))])
-    (run)))
+    (command-line
+     #:program me
+     #:once-each
+     (("-q" "--quiet") "run more quietly"
+                       (warranted-quiet? #t))
+     (("-n" "--pretend") "don't actually run commands"
+                         (warranted-pretend? #t))
+     (("-d" "--debug") "debug output"
+                       (warranted-debug? #t))
+     (("-D" "--development") "development mode"
+                             (warranted-development? #t))
+     #:handlers
+     (lambda (_ . args)
+       (if (> (length args) 0)
+           (run args)
+           (die usage)))
+     '("command" "arg")
+     (lambda (help-message)
+       ;; help: this is a normal exit
+       (complain "~A" help-message)
+       (exit 0))
+     (lambda switches
+       ;; unknown switch or switches: this is death
+       (case (length switches)
+         [(1)
+          (die "unknown switch ~A (try -h)" (first switches))]
+         [(0)
+          (die "mutant switch death")]
+         [else
+          (die "unknown switches ~A (try -h)" switches)])))))
