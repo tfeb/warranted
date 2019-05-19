@@ -104,7 +104,7 @@ Specific notes.
 - *It's just a hack*: I wrote it in a few hours so I could make my cron jobs work, and that's all it's good for.
 
 ## Building
-You will need a [Racket](https://racket-lang.org/) installation with `raco` in your `PATH`, & a working `make` (the Xcode one is fine).  Then `make` should be enough.  The binary is huge because it includes the whole Racket runtime.
+You will need a [Racket](https://racket-lang.org/) installation with `raco` in your `PATH`, & a working `make` (the Xcode one is fine).  The `Makefile` uses `raco exe` to make a binary and then `raco distribute` to make a distribution which should not depend on the installed Racket.  The default target just makes the binary, `make distrubution` will make the distribution directory, and `make install` will try to install the distribution.  Installing is fiddly in the usual way if the user who can run `raco` is not the one who can write into the install directory.
 
 ## Copyright & Licence
 Copyright 2019 Tim Bradshaw

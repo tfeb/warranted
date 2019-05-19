@@ -10,6 +10,7 @@
 
 SOURCES = warranted.rkt wct.rkt low.rkt
 BINDIR = /usr/local/bin
+LIBDIR = /usr/local/lib
 
 
 .PHONY: clean install test
@@ -17,8 +18,13 @@ BINDIR = /usr/local/bin
 warranted: $(SOURCES) test
 	raco exe warranted.rkt
 
-install: warranted
-	install -C -v -m 555 $^ $(BINDIR)
+distribution: warranted
+	raco distribute $@ $^
+
+install: distribution
+	mkdir -p $(BINDIR) $(LIBDIR)
+	install -C -v -m 555 distribution/bin/* $(BINDIR)
+	(cd distribution/lib && tar -cf - * | tar -C $(LIBDIR) -xpof -)
 
 test:
 	raco test $(SOURCES)
@@ -26,4 +32,5 @@ test:
 clean:
 	rm -f warranted
 	rm -rf compiled
+	rm -rf distribution
 	rm -f *~

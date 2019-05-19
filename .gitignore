@@ -3,8 +3,9 @@
 \#*\#
 .\#*
 
-# Ignore the binary
+# Ignore the binary & distribution
 /warranted
+/distribution/
 
 # Ignore Racket compiled files
 compiled/
