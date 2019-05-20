@@ -8,15 +8,19 @@
 ## $Format:(@:%H)$
 ###############################################################################
 
-SOURCES = warranted.rkt wct.rkt low.rkt
+SOURCES	= warranted.rkt wct.rkt low.rkt
 BINDIR = /usr/local/bin
 LIBDIR = /usr/local/lib
-
+TESTF = .TESTF
 
 .PHONY: clean install test
 
-warranted: $(SOURCES) test
+warranted: $(SOURCES) $(TESTF)
 	raco exe warranted.rkt
+
+$(TESTF):
+	raco test $(SOURCES)
+	touch $@
 
 distribution: warranted
 	raco distribute $@ $^
@@ -26,11 +30,11 @@ install: distribution
 	install -C -v -m 555 distribution/bin/* $(BINDIR)
 	(cd distribution/lib && tar -cf - * | tar -C $(LIBDIR) -xpof -)
 
-test:
-	raco test $(SOURCES)
+test:	$(TESTF)
 
 clean:
 	rm -f warranted
+	rm -f $(TESTF)
 	rm -rf compiled
 	rm -rf distribution
 	rm -f *~

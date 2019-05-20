@@ -9,3 +9,6 @@
 
 # Ignore Racket compiled files
 compiled/
+
+# Ignore test flag
+/.TESTF
