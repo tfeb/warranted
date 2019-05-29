@@ -8,7 +8,7 @@
 ## $Format:(@:%H)$
 ###############################################################################
 
-SOURCES	= warranted.rkt wct.rkt low.rkt
+SOURCES	= warranted.rkt low.rkt fsm.rkt wcf.rkt
 BINDIR = /usr/local/bin
 LIBDIR = /usr/local/lib
 TESTF = .TESTF

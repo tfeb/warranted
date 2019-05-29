@@ -9,8 +9,9 @@
 ;;; It also needs more tests
 ;;;
 
-(require "wct.rkt"
-         "low.rkt"
+(require "low.rkt"
+         "fsm.rkt"
+         "wcf.rkt"
          (only-in racket/system
                   system*/exit-code)
          (rename-in racket
@@ -62,7 +63,7 @@
           me me))
 
 (define (run (args (vector->list (current-command-line-arguments)))
-             #:wct (wct (read-wct))
+             #:fsm (fsm (read-fsm))
              #:pretend-exit-code (pretend-exit-code 0))
   ;; Run a warranted command.  This either returns the exit code of the command,
   ;; or raises an exception.
@@ -73,7 +74,7 @@
            (die "no executable for ~A" command))
          (define effective-command-line (cons (path->string executable)
                                               (rest args)))
-         (unless (slist-matches-wct? effective-command-line wct)
+         (unless (slist-matches? fsm effective-command-line)
            (die "unwarranted command line ~S (from ~S)"
                 effective-command-line args))
          (unless (absolute-path? executable)
@@ -88,17 +89,16 @@
   (parameterize ([warranted-development? #t]
                  [warranted-pretend? #t]
                  [warranted-quiet? #t])
-    (let ([wct '(("/bin/cat" ("foo" ())
-                             ("bar" ())))])
+    (let ([fsm (patterns->fsm '(("/bin/cat" ("foo" "bar"))))])
       (check-eqv? (run '("cat" "foo")
-                       #:wct wct)
+                       #:fsm fsm)
                   0)
       (check-eqv? (run '("cat" "bar")
-                       #:wct wct)
+                       #:fsm fsm)
                   0)
       (check-exn exn:fail:death?
                  (thunk (run '("cat" "fish")
-                             #:wct wct))))))
+                             #:fsm fsm))))))
 
 
 (module+ main
@@ -106,11 +106,11 @@
                    (λ (e)
                      (complain "~A~%" (exn-message e))
                      (exit 1))]
-                  [exn:fail:bad-wct-spec?
+                  [exn:fail:bad-patterns?
                    (λ (e)
                      (complain "~A in ~A~%"
                                (exn-message e)
-                               (exn:fail:bad-wct-spec-source e))
+                               (exn:fail:bad-patterns-source e))
                      (exit 2))]
                   [exn:fail:bad-metafile?
                    (λ (e)
