@@ -16,6 +16,7 @@
 ;;; - the symbol * which matches any one element;
 ;;; - the symbol ** which matches zero or more elements (this is done
 ;;;   by looping back to the same node in the FSM);
+;;; - the symbol / which matches zero elements;
 ;;; - a list which is a disjunction and matches any of its members.
 ;;; Each element of a disjunction is either a string, * or **, or a
 ;;; pattern, which matches recursively.
@@ -29,10 +30,12 @@
 ;;; - ("ls" **) matches ls followed by any number of arguments
 ;;;   including zero;
 ;;; - ("ls" (("-l" *) "-l")) matches ls -l followed by any single
-;;;   argument, or ls -l.
+;;;   argument, or ls -l;
+;;; - ("ls" (/ "-l") *) matches ls, optionally -l then any single argument.
 ;;;
 
-(require srfi/17)
+(require "low.rkt"
+         srfi/17)
 
 (provide (contract-out
           (slist-matches?
@@ -123,7 +126,7 @@
   ;; Is a candidate a valid pattern?
   (define (valid-element? elt)
     ;; valid atomic elements
-    (or (string? elt) (memv elt '(* **))))
+    (or (string? elt) (memv elt '(* ** /))))
   (and (list? candidate)
        (if (null? candidate)
            ;; the empty list is valid
@@ -150,6 +153,7 @@
                             ("ls" *)
                             ("ls" "-l" *)
                             ("ls" "-l" **)
+                            ("ls" (/ "-l") *)
                             ("ls" ("-l" "-t") *)))])
     (check-true (valid-pattern? pattern)))
   (for ([bad (in-list '(1 (1) (x) ("ls" . "-l") *))])
@@ -198,21 +202,28 @@
 
 (define (slist-matches? s slist)
   ;; does an slist match a pattern?
+  (debug "matching ~S~%" slist)
   (if (null? slist)
       (state-final? s)
       (match-let ([(cons this tail) slist])
         (or (let ([next (get-next-state s this)])
               (and next (slist-matches? next tail)))
+            (let ([skip-next (get-next-state s '/)])
+              (and skip-next (slist-matches? skip-next (cons this tail))))
             (let ([wild-next (get-next-state s '*)])
               (and wild-next (slist-matches? wild-next tail)))
             (let ([wild-loop (get-next-state s '**)])
               (and wild-loop (slist-matches? wild-loop tail)))))))
 
 (module+ test
-  (let* ([patterns '(("ls")
-                    ("ls" ("-l" "-t") *))]
-         [fsm (patterns->fsm patterns)])
+  (let ([fsm (patterns->fsm '(("ls")
+                             ("ls" ("-l" "-t") *)))])
     (check-true (slist-matches? fsm '("ls")))
     (check-true (slist-matches? fsm '("ls" "-t" "x")))
     (check-false (slist-matches? fsm '("ls" "-l")))
-    (check-false (slist-matches? fsm '("ls" "-l" "x" "y")))))
+    (check-false (slist-matches? fsm '("ls" "-l" "x" "y"))))
+  (let ([fsm (patterns->fsm '(("ls" (/ "-l") *)))])
+    (check-true (slist-matches? fsm '("ls" "-l" "a")))
+    (check-true (slist-matches? fsm '("ls" "a")))
+    (check-false (slist-matches? fsm '("ls" "-r" "a")))
+    (check-false (slist-matches? fsm '("ls")))))
