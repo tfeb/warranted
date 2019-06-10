@@ -18,8 +18,8 @@ TESTF = .TESTF
 warranted: $(SOURCES) $(TESTF)
 	raco exe warranted.rkt
 
-$(TESTF):
-	raco test $(SOURCES)
+$(TESTF): $(SOURCES)
+	raco test -t $(SOURCES)
 	touch $@
 
 distribution: warranted

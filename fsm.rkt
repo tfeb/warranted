@@ -105,10 +105,10 @@
 
 (define (ensure-next-state s key (target #f))
   (get-next-state s key
-                 (λ (ss kk)
-                   (let ([new (make-arc kk (or target (make-state)))])
-                     (set! (state-arcs ss) (cons new (state-arcs ss)))
-                     (arc-next new)))))
+                  (λ (ss kk)
+                    (let ([new (make-arc kk (or target (make-state)))])
+                      (set! (state-arcs ss) (cons new (state-arcs ss)))
+                      (arc-next new)))))
 
 (module+ test
   (check-pred state? (ensure-next-state (make-state) "foo"))
@@ -180,13 +180,13 @@
               (intern-pattern s (if (list? disjunct)
                                     (append disjunct tail)
                                     (cons disjunct tail))))
-              (case this
-                ((**)
-                 ;; loopback case
-                 (intern-pattern (ensure-next-state s this s) tail))
-                (else
-                 ;; normal case: note * is normal here.
-                 (intern-pattern (ensure-next-state s this) tail)))))))
+            (case this
+              ((**)
+               ;; loopback case
+               (intern-pattern (ensure-next-state s this s) tail))
+              (else
+               ;; normal case: note * is normal here.
+               (intern-pattern (ensure-next-state s this) tail)))))))
 
 (define (patterns->fsm patterns)
   ;; intern a bunch of patterns into a new FSM
@@ -216,14 +216,87 @@
               (and wild-loop (slist-matches? wild-loop tail)))))))
 
 (module+ test
-  (let ([fsm (patterns->fsm '(("ls")
-                             ("ls" ("-l" "-t") *)))])
-    (check-true (slist-matches? fsm '("ls")))
-    (check-true (slist-matches? fsm '("ls" "-t" "x")))
-    (check-false (slist-matches? fsm '("ls" "-l")))
-    (check-false (slist-matches? fsm '("ls" "-l" "x" "y"))))
-  (let ([fsm (patterns->fsm '(("ls" (/ "-l") *)))])
-    (check-true (slist-matches? fsm '("ls" "-l" "a")))
-    (check-true (slist-matches? fsm '("ls" "a")))
-    (check-false (slist-matches? fsm '("ls" "-r" "a")))
-    (check-false (slist-matches? fsm '("ls")))))
+  (define-syntax-rule (with-fsm (fsm patterns) form ...)
+    (let ([fsm (patterns->fsm patterns)])
+      form ...))
+  (define (check-match fsm . slists)
+    (for ([slist (in-list slists)])
+      (check-true (slist-matches? fsm slist))))
+  (define (check-nomatch fsm . slists)
+    (for ([slist (in-list slists)])
+      (check-false (slist-matches? fsm slist))))
+
+  (test-case
+   "Basic FSM matching"
+   (with-fsm (fsm '(("ls")
+                    ("ls" ("-l" "-t") *)))
+     (check-match fsm
+                  '("ls")
+                  '("ls" "-t" "x"))
+     (check-nomatch fsm
+                    '("ls" "-l")
+                    '("ls" "-l" "x" "y")))
+   (with-fsm (fsm '(("ls" (/ "-l") *)))
+     (check-match fsm
+                  '("ls" "-l" "a")
+                  '("ls" "a"))
+     (check-nomatch fsm
+                    '("ls" "-r" "a")
+                    '("ls"))))
+
+  (test-case
+   "Examples from the documentation"
+   (with-fsm (fsm '(("/bin/ls")))
+     (check-match fsm '("/bin/ls"))
+     (check-nomatch fsm '("/bin/ls" "x") '("/bin/cat")))
+   (with-fsm (fsm '(("/bin/ls" "/etc/motd")))
+     (check-match fsm '("/bin/ls" "/etc/motd"))
+     (check-nomatch fsm '("/bin/ls" "/dev/null") '("/bin/cat")))
+   (with-fsm (fsm '(("/bin/ls" *)))
+     (check-match fsm
+                  '("/bin/ls" "/etc/motd")
+                  '("/bin/ls" "/dev/null")
+                  '("/bin/ls" "-l"))
+     (check-nomatch fsm
+                    '("/bin/ls" "-l" "/etc/motd")))
+   (with-fsm (fsm '(("/bin/ls" "-l" *)))
+     (check-match fsm
+                  '("/bin/ls" "-l" "x")
+                  '("/bin/ls" "-l" "-r"))
+     (check-nomatch fsm
+                    '("/bin/ls")
+                    '("/bin/ls" "-r" "-l")
+                    '("/bin/ls" "-l" "x" "y")))
+   (with-fsm (fsm '(("/bin/ls" **)))
+     (check-match fsm
+                  '("/bin/ls" "x" "y" "z")
+                  '("/bin/ls"))
+     (check-nomatch fsm '("/bin/cat")))
+   (with-fsm (fsm '(("/bin/ls" ** "/etc/motd")))
+     (check-match fsm
+                  '("/bin/ls" "/etc/motd")
+                  '("/bin/ls" "x" "y" "/etc/motd"))
+     (check-nomatch fsm
+                    '("/bin/ls")
+                    '("/bin/ls" "x" "y")))
+   (with-fsm (fsm '(("/bin/ls" ("/etc/motd" "/etc/hostname"))))
+     (check-match fsm
+                  '("/bin/ls" "/etc/motd")
+                  '("/bin/ls" "/etc/hostname"))
+     (check-nomatch fsm
+                    '("/bin/ls")
+                    '("/bin/ls" "/etc/rc.local")))
+   (with-fsm (fsm '(("/bin/ls" (/ "-l") "/etc/motd")))
+     (check-match fsm
+                  '("/bin/ls" "/etc/motd")
+                  '("/bin/ls" "-l" "/etc/motd"))
+     (check-nomatch fsm
+                    '("/bin/ls" "-r" "/etc/motd")
+                    '("/bin/ls" "-l" "-r" "/etc/motd")))
+   (with-fsm (fsm '(("/bin/ls" (/ ("-l" "-r")) "/etc/motd")))
+     (check-match fsm
+                  '("/bin/ls" "/etc/motd")
+                  '("/bin/ls" "-l" "-r" "/etc/motd"))
+     (check-nomatch fsm
+                    '("/bin/ls" "-l" "/etc/motd")
+                    '("/bin/ls" "-l" "-r")))))
