@@ -1,18 +1,9 @@
 # Things to do for `warranted`
-## The whole command tree thing is bogus
-It should be specified in terms of some kind of FSM so you might be able to say
-
-```
-(("/Users/tfb/lib/cron/run"
-  (? "-t")
-  (or "hourly"
-      "nightly"
-      "weekly"
-      "monthly"
-      "yearly"))
-```
-
-or something like that.
-
+## Should `/` be `?`
+I prefer `/`, but, well, perhaps `(? ...)` reads better as a disjunction?
+## What else is needed for specifications?
+What's there now seems OK.  Perhaps negation would be useful (but how to fit that).  I should look at `sudo` and remember what it does (although it is problematic).
+## Code signing
+I suppose I need to understand this.
 ## Everything is awful
 It just needs more thinking about.

@@ -73,7 +73,7 @@
 (define state-final? state-final)
 
 (define fsm?
-  ;; fsm? is the thing we provide: an fsm is a stata
+  ;; fsm? is the thing we provide: an fsm is a state
   state?)
 
 ;;; Abstraction for arcs
