@@ -1,11 +1,11 @@
 # Warranted commands
-\[**This documentation and the utility itself are currently in a rudimentary state: *caveat emptor*.**]
+\[**This documentation, and the utility itself, are currently in a rudimentary state: *caveat emptor*.**]
 
 This is a primitive utility which allows you to 'warrant' certain commands using one or more configuration files.  It's like a tiny version of `sudo` except without the implication of SUID or most of the complexity, and probably without most of the security either.
 
 So what's it useful for?  MacOS has recently developed a complicated layer of privacy controls which mean that programs (not just applications with GUIs: anything) which want to access data such as contacts &c need permission to do so.  This access control is completely orthogonal to the Unix filesystem permissions.
 
-This is fine ... unless you want to run cron jobs which, say, run scripts or other programs in order to, for instance, make backups: if you try to run anything which walks over your home directory then it will fail.
+This is fine ... unless you want to run periodic background jobs which run scripts or other programs in order to, for instance, make backups: if you try to run anything which walks over your home directory then it will either fail altogether or pop up dialogue boxes at odd times, which is not the behaviour you want from cron jobs.
 
 There is a solution to this: you can grant specified programs 'full disk access' which allows them to bypass all this.  There is some mechanism I don't understand which decides which program needs to have that access: for instance if you sit in a terminal window and type
 
@@ -146,10 +146,12 @@ Specific security notes.
 - The default configuration will let it read a file controlled by the user running it: it needs to be tied down with a meta file to stop that.
 - *It's just a hack*: I wrote it in a few hours so I could make my cron jobs work, and that's all it's good for.
 
-## Building
-You will need a [Racket](https://racket-lang.org/) installation with `raco` in your `PATH`, & a working `make` (the Xcode one is fine).  The `Makefile` uses `raco exe` to make a binary and then `raco distribute` to make a distribution which should not depend on the installed Racket.  The default target just makes the binary, `make distrubution` will make the distribution directory, and `make install` will try to install the distribution.  Installing is fiddly in the usual way if the user who can run `raco` is not the one who can write into the install directory.
+If you care about security, read the code: it's not very big.
 
-## General notes
+## Building
+`warranted` is written in [Racket](https://racket-lang.org/), and has been built with Racket 7.2 & 7.3.  You will need a Racket installation with `raco` in your `PATH`, & a working `make` (the Xcode one is fine).  The `Makefile` uses `raco exe` to make a binary and then `raco distribute` to make a distribution which should not depend on the installed Racket.  The default target just makes the binary, `make distrubution` will make the distribution directory, and `make install` will try to install the distribution.  Installing is fiddly in the usual way if the user who can run `raco` is not the one who can write into the install directory.
+
+## Other notes
 Although this is not apparent from the GUI, it seems to be the case that when you bless a locally-built executable, such as `warranted`, you are blessing the specific file: presumably it works out whether the file is blessed or not by computing some signature of it and comparing it with what it knows.  This means that if you rebuild & reinstall it it will stop being blessed, although the GUI will show that it still is.  So each time you reinstall `warranted` you have to do a little dance to remove the old one from the list and then bless the new one.  The answer to this is probably code signing, but I have no idea how that works: I suspect the answer is [here](https://developer.apple.com/library/archive/documentation/Security/Conceptual/CodeSigningGuide/Introduction/Introduction.html).
 
 ---
