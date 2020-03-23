@@ -28,7 +28,9 @@ distribution: warranted
 install: distribution
 	mkdir -p $(BINDIR) $(LIBDIR)
 	install -C -v -m 555 distribution/bin/* $(BINDIR)
-	(cd distribution/lib && tar -cf - * | tar -C $(LIBDIR) -xpof -)
+	if [ -d distribution/lib ]; then \
+            (cd distribution/lib && tar -cf - * | tar -C $(LIBDIR) -xpof -); \
+        fi
 
 test:	$(TESTF)
 
