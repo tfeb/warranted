@@ -89,7 +89,10 @@
   (parameterize ([warranted-development? #t]
                  [warranted-pretend? #t]
                  [warranted-quiet? #t])
-    (let ([fsm (patterns->fsm '(("/bin/cat" ("foo" "bar"))))])
+    ;; If cat is not /bin/cat or /usr/bin/cat this will fail
+    (let ([fsm (patterns->fsm '((("/bin/cat"
+                                  "/usr/bin/cat")
+                                 ("foo" "bar"))))])
       (check-eqv? (run '("cat" "foo")
                        #:fsm fsm)
                   0)
