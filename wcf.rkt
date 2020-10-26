@@ -61,6 +61,29 @@
   #:extra-constructor-name make-exn:fail:bad-metafile
   #:transparent)
 
+(define (read-safely in)
+  ;; Try to read safely from a port.
+  ;; This is probably not enough, but it is at least a start
+  (call-with-default-reading-parameterization
+   (thunk
+    (parameterize ([read-accept-lang #f]
+                   [read-accept-reader #f])
+      (read in)))))
+
+(module+ test
+  (test-case
+   "Check that read-safely is a bit safe"
+   (check-exn
+    exn:fail:read?
+    (thunk
+     (call-with-input-string "#reader \"foo\" (foo)"
+                             read-safely)))
+   (check-exn
+    exn:fail:read?
+    (thunk
+     (call-with-input-string "#lang racket (foo)"
+                             read-safely)))))
+
 (define (default-warranted-commands-files)
   ;; This is the default returner of files containing WCT specifications.
   ;; it looks for metafiles and if it finds any reads a list from the first
@@ -85,8 +108,7 @@
           (match-let ([(cons metafile more-metas) metafiles])
             (debug "[looking for metafile ~A]~%" metafile)
             (let ([wcfs (and (file-exists? metafile)
-                             (call-with-default-reading-parameterization
-                              (thunk (call-with-input-file metafile read))))])
+                             (call-with-input-file metafile read-safely))])
               (cond [wcfs
                      (debug "[wct files from ~A~%~A]~%"
                             metafile (pretty-format wcfs))
@@ -115,8 +137,7 @@
    (for/fold ([wcs '()]) ([file files])
      (debug "[looking for wct file ~A]~%" file)
      (append wcs (if (file-exists? file)
-                     (let ([spec (call-with-default-reading-parameterization
-                                  (thunk (call-with-input-file file read)))])
+                     (let ([spec (call-with-input-file file read-safely)])
                        (debug "[entries from ~A~%~A]~%"
                               file (pretty-format spec))
                        (unless (valid-patterns? spec)

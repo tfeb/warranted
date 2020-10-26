@@ -22,7 +22,7 @@ So you need a wrapper of some kind which you can bless.  One obvious approach wo
 Enter `warranted`: this reads one or more files with command descriptions in them, and checks a command line against it, running it if it matches.  If you install it in `/usr/local/bin`, then you can bless it (remember 'CMD-shift-.' to let the Finder see all files), and use it to run commands you are interested in.
 
 ## Configuration files
-All configuration file syntax is standard [Racket](https://racket-lang.org/) syntax: everything is read with [`read`](https://docs.racket-lang.org/reference/Reading.html) wrapped with `call-with-default-reading-parameterization`.  There is exactly one form in any file (you can add others, but only the first will be read).
+All configuration file syntax is standard [Racket](https://racket-lang.org/) syntax: everything is read with [`read`](https://docs.racket-lang.org/reference/Reading.html) wrapped with `call-with-default-reading-parameterization` and with the `read-accept-lang` and `read-accept-reader` parameters false.  There is exactly one form in any file (you can add others, but only the first will be read).
 
 There are two sets of files:
 
@@ -157,7 +157,7 @@ Although this is not apparent from the GUI, it seems to be the case that when yo
 ---
 
 ## Copyright & Licence
-Copyright 2019 Tim Bradshaw
+Copyright 2019, 2020 Tim Bradshaw
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
