@@ -1,4 +1,4 @@
-# Warranted commands
+# [Warranted commands](https://github.com/tfeb/warranted)
 \[**This documentation, and the utility itself, are currently in a rudimentary state: *caveat emptor*.**]
 
 This is a primitive utility which allows you to 'warrant' certain commands using one or more configuration files.  It's like a tiny version of `sudo` except without the implication of SUID or most of the complexity, and probably without most of the security either.
