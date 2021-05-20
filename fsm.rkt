@@ -13,6 +13,7 @@
 ;;; FSMs are created from patterns.  A pattern is a list of zero or
 ;;; more elements, each of which may be:
 ;;; - a string, which matches itself;
+;;; - a regexp, which must match the whole of an element;
 ;;; - the symbol * which matches any one element;
 ;;; - the symbol ** which matches zero or more elements (this is done
 ;;;   by looping back to the same node in the FSM);
@@ -24,9 +25,11 @@
 ;;; Example patterns:
 ;;; - ("ls" "-l") matches ls -l (in fact it doesn't as the first
 ;;;   element needs to be an absolute pathname);
+;;; - ("ls: #rx"-[lh]") matches ls -l or ls -h;
 ;;; - ("ls" "-l" *) matches ls -l followed by any single argument;
 ;;; - ("ls" ("-l" "-d") *) matches ls -l or ls -d followed by any
 ;;;   single argument;
+;;; - ("ls" #rx"-[ld]" *) is a regexpy way of saying the same thing;
 ;;; - ("ls" **) matches ls followed by any number of arguments
 ;;;   including zero;
 ;;; - ("ls" (("-l" *) "-l")) matches ls -l followed by any single
@@ -82,6 +85,14 @@
 (define (make-arc key (next (make-state)))
   (cons key next))
 
+(define (arc-match? arc thing)
+  (let ([key (arc-key arc)])
+    (if (regexp? key)
+        (if (string? thing)
+            (regexp-match-exact? key thing)
+            #f)
+        (equal? key thing))))
+
 (define-values (arc-key arc-next) (values car cdr))
 
 (define (get-next-state s key (missing #f))
@@ -89,7 +100,7 @@
   ;; pattern matching yet) key.  If no state is found then, if missing
   ;; is a procedure, call it with s & key, otherwise return it.
   (let ([found (findf (λ (arc)
-                        (equal? (arc-key arc) key))
+                        (arc-match? arc key))
                       (state-arcs s))])
     (cond [found
            (arc-next found)]
@@ -126,7 +137,7 @@
   ;; Is a candidate a valid pattern?
   (define (valid-element? elt)
     ;; valid atomic elements
-    (or (string? elt) (memv elt '(* ** /))))
+    (or (string? elt) (regexp? elt) (memv elt '(* ** /))))
   (and (list? candidate)
        (if (null? candidate)
            ;; the empty list is valid
@@ -245,6 +256,25 @@
                     '("ls"))))
 
   (test-case
+   "Regexp FSM matching"
+   (with-fsm (fsm '(("ls")
+                    ("ls" #rx"-[lh]")))
+     (check-match fsm
+                  '("ls")
+                  '("ls" "-l"))
+     (check-nomatch fsm
+                    '("ls" "-")
+                    '("ls" "-lh")
+                    '("ls" "-ll")))
+   (with-fsm (fsm '(("ls" #rx"(a|b)")))
+     (check-match fsm
+                  '("ls" "a")
+                  '("ls" "b"))
+     (check-nomatch fsm
+                    '("ls" "ab")
+                    '("ls" "c"))))
+
+  (test-case
    "Examples from the documentation"
    (with-fsm (fsm '(("/bin/ls")))
      (check-match fsm '("/bin/ls"))
@@ -263,6 +293,15 @@
      (check-match fsm
                   '("/bin/ls" "-l" "x")
                   '("/bin/ls" "-l" "-r"))
+     (check-nomatch fsm
+                    '("/bin/ls")
+                    '("/bin/ls" "-r" "-l")
+                    '("/bin/ls" "-l" "x" "y")))
+   (with-fsm (fsm '(("/bin/ls" #rx"-[ld]" *)))
+     (check-match fsm
+                  '("/bin/ls" "-l" "x")
+                  '("/bin/ls" "-l" "-d")
+                  '("/bin/ls" "-d" "x"))
      (check-nomatch fsm
                     '("/bin/ls")
                     '("/bin/ls" "-r" "-l")
@@ -299,4 +338,20 @@
                   '("/bin/ls" "-l" "-r" "/etc/motd"))
      (check-nomatch fsm
                     '("/bin/ls" "-l" "/etc/motd")
-                    '("/bin/ls" "-l" "-r")))))
+                    '("/bin/ls" "-l" "-r")))
+   (with-fsm (fsm '(("/bin/ls" (/ #rx"-[lr]") "/etc/motd")))
+     (check-match fsm
+                  '("/bin/ls" "/etc/motd")
+                  '("/bin/ls" "-l" "/etc/motd")
+                  '("/bin/ls" "-r" "/etc/motd"))
+     (check-nomatch fsm
+                    '("/bin/ls" "-lr" "/etc/motd")
+                    '("/bin/ls" "-l" "x")))
+   (with-fsm (fsm '(("/bin/ls" (/ (("-l" "-r"))) "/etc/motd")))
+     (check-match fsm
+                  '("/bin/ls" "/etc/motd")
+                  '("/bin/ls" "-l" "/etc/motd")
+                  '("/bin/ls" "-r" "/etc/motd"))
+     (check-nomatch fsm
+                    '("/bin/ls" "-lr" "/etc/motd")
+                    '("/bin/ls" "-l" "x")))))

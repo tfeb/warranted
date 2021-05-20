@@ -57,12 +57,14 @@ Each command specification file contains a single form, which is a list of comma
 * A *command specification* is a list of *elements*.
 * An *element* is either:
 	* a string;
+	* a regexp, using Racket's `#rx` or `#px` syntaxes for regexps;
 	* a list of zero or more command specifications or command specification elements (both may be in a single list);
 	* one of the symbols `*`, `**`, `/`.
 
 A command line matches a command specification if all its elements match.
 
 * Elements which are strings match corresponding command line elements.  The first element in the command line (the command in other words) is looked up along `PATH` and this is what is matched.  So, for instance `cat` is turned into `/bin/cat` and this must be what is in the command specification.
+* Elements which are regexps also match corresponding command line elements.  The regexp must match the whole of the element: this means you don't need to anchor the pattern, and also makes it harder to make mistakes I hope.
 * The element `*` matches any single entry in the command line.
 * The element `**` matches zero or more entries in the command line.
 * The element `/` matches no elements in the command line (see below for why this is useful).
@@ -81,6 +83,8 @@ These examples are of single command specifications: remember that a specificati
 
 `("/bin/ls" "-l" *)` will match `ls -l` and any other single argument.
 
+`("/bin/ls" #rx"-[ld]" *)` will match `ls -l` and any other single argument, or `ls -d` and any other single argument.
+
 `("/bin/ls" **)` will match `ls` with any number of arguments, including zero.
 
 `("/bin/ls" ** "/etc/motd")` would match `ls` with any number of arguments so long as the last one is `/etc/motd`.
@@ -90,6 +94,8 @@ These examples are of single command specifications: remember that a specificati
 `("/bin/ls" (/ "-l") "/etc/motd")` matches `ls /etc/motd` and `ls -l /etc/motd`.  This works because the disjunction either matches `-l` or matches nothing with `/`: this is what `/` is useful for.
 
 `("/bin/ls" (/ ("-l" "-r")) "/etc/motd")` matches either `ls /etc/motd` or `ls -l -r /etc/motd`, which it does because the disjunction contains a nested command specification.
+
+`("/bin/ls" (/ #rx"-[lr]") "/etc/motd")` matches one of `ls /etc/motd`, `ls -l /etc/motd` or `ls -r /etc/motd`.  This can be expressed without using a regexp as `("/bin/ls" (/ (("-l" "-r"))) "/etc/motd")`: In this case `(/ ...)` is a disjunction which contains a command sequence of one element which contains another disjunction.
 
 Finally here is the content of my `~/etc/warranted/commands.rktd` file:
 
@@ -102,6 +108,12 @@ Finally here is the content of my `~/etc/warranted/commands.rktd` file:
 ```
 
 Note that I've used `[...]` which Racket allows, and that this warrants, for instance `/Users/tfb/lib/cron/run hourly` and `/Users/tfb/lib/cron/run -t yearly` but not `/Users/tfb/lib/cron/run -x annually`.
+
+Regexps are new in command specifications and obviously allow some additional flexibility.  There is a saying about regexps which should never be forgotten:
+
+> Some people, when confronted with a problem, think "I know,
+I'll use regular expressions."  Now they have two problems.
+> -- jwz, 1997.
 
 ## Usage
 There are various options not described here (but `warranted -h` will give you some hints).  The basic usage is
@@ -157,7 +169,7 @@ Although this is not apparent from the GUI, it seems to be the case that when yo
 ---
 
 ## Copyright & Licence
-Copyright 2019, 2020 Tim Bradshaw
+Copyright 2019-2021 Tim Bradshaw
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
