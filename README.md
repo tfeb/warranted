@@ -54,11 +54,11 @@ All the files which are found are read, and they are combined into a single spec
 ## Command specifications
 Each command specification file contains a single form, which is a list of command specifications.
 
-* A *command specification* is a list of *elements*.
+* A *command specification* is either `(and element ...)` (`and` is a literal) elements:
 * An *element* is either:
 	* a string;
 	* a regexp, using Racket's `#rx` or `#px` syntaxes for regexps;
-	* a list of zero or more command specifications or command specification elements (both may be in a single list);
+	* a *disjunction*, which is either `(or disjunct ...)` (again, `or` is a literal) or a list of disjuncts, where a *disjunct* is a command specification or a command specification element (both may be in a single list);
 	* one of the symbols `*`, `**`, `/`.
 
 A command line matches a command specification if all its elements match.
@@ -77,7 +77,7 @@ These examples are of single command specifications: remember that a specificati
 
 `("/bin/ls")` will match `ls` with no arguments only (assuming that `type -p ls` is `/bin/ls` which it is by default).
 
-`("/bin/ls" "/etc/motd")` will match `ls /etc/motd` only.
+`("/bin/ls" "/etc/motd")` will match `ls /etc/motd` only.  This is equivalent to `(and "/bin/ls" "/etc/motd")`: the same is true for the following.
 
 `("/bin/ls" *)` will match `ls` with any single argument.  Note that `warranted` has no idea whether an argument is a switch or not.
 
@@ -93,9 +93,9 @@ These examples are of single command specifications: remember that a specificati
 
 `("/bin/ls" (/ "-l") "/etc/motd")` matches `ls /etc/motd` and `ls -l /etc/motd`.  This works because the disjunction either matches `-l` or matches nothing with `/`: this is what `/` is useful for.
 
-`("/bin/ls" (/ ("-l" "-r")) "/etc/motd")` matches either `ls /etc/motd` or `ls -l -r /etc/motd`, which it does because the disjunction contains a nested command specification.
+`("/bin/ls" (/ ("-l" "-r")) "/etc/motd")` matches either `ls /etc/motd` or `ls -l -r /etc/motd`, which it does because the disjunction contains a nested command specification.  This might be more clearly expressed as `(and "/bin/ls" (or / (and "-l" "-r")) "/etc/motd")`.
 
-`("/bin/ls" (/ #rx"-[lr]") "/etc/motd")` matches one of `ls /etc/motd`, `ls -l /etc/motd` or `ls -r /etc/motd`.  This can be expressed without using a regexp as `("/bin/ls" (/ (("-l" "-r"))) "/etc/motd")`: In this case `(/ ...)` is a disjunction which contains a command sequence of one element which contains another disjunction.
+`("/bin/ls" (/ #rx"-[lr]") "/etc/motd")` matches one of `ls /etc/motd`, `ls -l /etc/motd` or `ls -r /etc/motd`.  This can be expressed without using a regexp as `("/bin/ls" (/ (("-l" "-r"))) "/etc/motd")`: In this case `(/ ...)` is a disjunction which contains a command sequence of one element which contains another disjunction.  That case again would probably be much clearer as `(and "/bin/ls" (or / (and (or "-l" "-r"))) "/etc/motd")` or something like that, although both are less clear than the regexp version I think.
 
 Finally here is the content of my `~/etc/warranted/commands.rktd` file:
 
@@ -114,6 +114,8 @@ Regexps are new in command specifications and obviously allow some additional fl
 > Some people, when confronted with a problem, think "I know,
 I'll use regular expressions."  Now they have two problems.
 > -- jwz, 1997.
+
+Note that you can't freely nest things: `(and (and ...))` is not legal, and neither is `(and ... (or (or ...)))`: this is probably something which should be fixed in due course, so `(and ... (and ...))` would be flattened to `(and ... ...)`.
 
 ## Usage
 There are various options not described here (but `warranted -h` will give you some hints).  The basic usage is
@@ -165,6 +167,8 @@ If you care about security, read the code: it's not very big.
 
 ## Other notes
 Although this is not apparent from the GUI, it seems to be the case that when you bless a locally-built executable, such as `warranted`, you are blessing the specific file: presumably it works out whether the file is blessed or not by computing some signature of it and comparing it with what it knows.  This means that if you rebuild & reinstall it it will stop being blessed, although the GUI will show that it still is.  So each time you reinstall `warranted` you have to do a little dance to remove the old one from the list and then bless the new one.  The answer to this is probably code signing, but I have no idea how that works: I suspect the answer is [here](https://developer.apple.com/library/archive/documentation/Security/Conceptual/CodeSigningGuide/Introduction/Introduction.html).
+
+The `(and ...)` and `(or ...)` forms were meant to make complex nested command specifications easier to read: I'm not sure they actually do.
 
 ---
 
