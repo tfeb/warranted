@@ -1,4 +1,6 @@
 # Things to do for `warranted`
+## Patterns should be more explicit
+It would be better to say `(and "ls" (or "-l" "-r") ...)` I think.  You'd then know visually which patterns were sequences and which were disjunctions.  But you'd need to deal with `(and ... (and ...))` which should compile to `(and ... ...)`.
 ## Should `/` be `?`
 I prefer `/`, but, well, perhaps `(? ...)` reads better as a disjunction?
 ## What else is needed for specifications?
