@@ -51,15 +51,41 @@ which will cause `warranted` to look *only* at `/etc/warranted/commands.rktd` fo
 
 All the files which are found are read, and they are combined into a single specification specifying what can be read.
 
+## The regretable history of command specifications
+In the first reasonable version, command specifications were lists of elements where nested lists were disjunctions which could in turn have command specifications inside them.  This meant you had to know the nesting level to know what you were looing at meant.  So in something like
+
+```
+["/Users/tfb/lib/cron/run"
+  (/ "-t" ["-l" "-r"])
+  ("hourly" "nightly" "weekly"
+   "monthly" "yearly")]
+```
+
+You need to know that the outer thing is a command specification, the thing inside it is a disjunction, and inside *that* is another partial command specification.  This is OK so long as you are consistent in using `[...]` and `(...)`, but nothing forces that.
+
+So I thought it would be nice to express these things explicitly: a command specification would be `(and ...)`, meaning 'all these mus match' and a disjunction would be `(or ...)` meaning 'one of these must match'.  And that means you can also compose things: `(and "ls" (and "-l" *))` is `(and "ls" "-l" *)`.  So now the above specificatioun would be
+
+```
+[and "/Users/tfb/lib/cron/run"
+     (or / "-t" [and "-l" "-r"])
+  (or "hourly" "nightly" "weekly"
+      "monthly" "yearly")]
+```
+
+And that would be better.
+
+Except, is it really?  And, even worse, I didn't want to disenfranchise the old nesting-level-based one, so that's all still there, and you can combine them.  Something needs to be done about this, but I am not sure what.
+
 ## Command specifications
 Each command specification file contains a single form, which is a list of command specifications.
 
-* A *command specification* is either `(and element ...)` (`and` is a literal) elements:
+* A *command specification* is either `(and element ...)` (`and` is a literal) or a list of elements.
 * An *element* is either:
 	* a string;
 	* a regexp, using Racket's `#rx` or `#px` syntaxes for regexps;
-	* a *disjunction*, which is either `(or disjunct ...)` (again, `or` is a literal) or a list of disjuncts, where a *disjunct* is a command specification or a command specification element (both may be in a single list);
-	* one of the symbols `*`, `**`, `/`.
+	* a *disjunction*, which is either `(or disjunct ...)` (again, `or` is a literal) or a list of disjuncts, where a *disjunct* is a command specification, a command specification element (both may be in a single list) or a disjunction in the explicit `(or disjunct ...)` form.
+	* one of the symbols `*`, `**`, `/`;
+	* a command specification in the explicit `(and element ...)` form.
 
 A command line matches a command specification if all its elements match.
 
@@ -68,9 +94,11 @@ A command line matches a command specification if all its elements match.
 * The element `*` matches any single entry in the command line.
 * The element `**` matches zero or more entries in the command line.
 * The element `/` matches no elements in the command line (see below for why this is useful).
-* An element which is a list is a disjunction which matches if one of its entries matches:
+* An element which is a disjunction matches if one of its entries matches:
 	* if the entry is an element it must match element-wise;
-	* if the entry is a command-specification it must match as a specification.
+	* if the entry is a command-specification it must match as a specification;
+	* if the entry is a disjunction it is essentially spliced into the current disjunction: `(or "x" (or "y" "z"))` is the same as `(or "x" "y" "z")`.
+* An element which is a command specification is spliced into the current specification: `(and "ls" (and "-l") *)` is equivalent to `(and "ls" "-l" *)`.
 
 ## Example command specifications
 These examples are of single command specifications: remember that a specification file contains a list of command specifications.  Note that not all of the command specifications below make any sense, or are safe: they're just here as examples.
@@ -107,7 +135,7 @@ Finally here is the content of my `~/etc/warranted/commands.rktd` file:
    "monthly" "yearly")])
 ```
 
-Note that I've used `[...]` which Racket allows, and that this warrants, for instance `/Users/tfb/lib/cron/run hourly` and `/Users/tfb/lib/cron/run -t yearly` but not `/Users/tfb/lib/cron/run -x annually`.
+Note that I've used `[...]` which Racket allows, and that this warrants, for instance `/Users/tfb/lib/cron/run hourly` and `/Users/tfb/lib/cron/run -t yearly` but not `/Users/tfb/lib/cron/run -x annually`.  Note also that this is an old-style specification.
 
 Regexps are new in command specifications and obviously allow some additional flexibility.  There is a saying about regexps which should never be forgotten:
 
@@ -115,7 +143,7 @@ Regexps are new in command specifications and obviously allow some additional fl
 I'll use regular expressions."  Now they have two problems.
 > -- jwz, 1997.
 
-Note that you can't freely nest things: `(and (and ...))` is not legal, and neither is `(and ... (or (or ...)))`: this is probably something which should be fixed in due course, so `(and ... (and ...))` would be flattened to `(and ... ...)`.
+Note that you can freely nest things: `(and (and ...))` is fine, as is `(and ... (or (or ...)))`.  Both are effectively flattened (and in fact actually flattened) to a single layer structure.
 
 ## Usage
 There are various options not described here (but `warranted -h` will give you some hints).  The basic usage is

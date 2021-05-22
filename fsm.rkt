@@ -140,12 +140,35 @@
     (check-not-eq? (get-next-state s "foo") (get-next-state s "bar"))
     (check-false (get-next-state s "ben"))))
 
+(define (maybe-flatten-elements key elements)
+  ;; flatten the elements of a named (and, or) list of things
+  (let floop ([elts elements]
+              [agenda '()]
+              [results '()])
+    (match elts
+      ['()
+       (if (null? agenda)
+           (reverse results)
+           (floop (first agenda)
+                  (rest agenda)
+                  results))]
+      [(list* this more)
+       (match this
+         [(list* maybe-key subelements)
+          (if (eqv? maybe-key key)
+              (floop subelements
+                     (cons more agenda)
+                     results)
+              (floop more agenda (cons this results)))]
+         [_
+          (floop more agenda (cons this results))])])))
+
 (define (pattern-elements pattern)
   ;; The elements of a pattern: this is where it is known that
   ;; patterns can be lists of the form (and ...).
   (match pattern
     [(list* 'and elements)
-     elements]
+     (maybe-flatten-elements 'and elements)]
     [(list elements ...)
      elements]
     [anything anything]))
@@ -155,10 +178,18 @@
   ;; disjunctions can be of the form (or ...).
   (match disjunction
     [(list* 'or elements)
-     elements]
+     (maybe-flatten-elements 'or elements)]
     [(list elements ...)
      elements]
     [anything anything]))
+
+(module+ test
+  (check-equal? (disjunction-elements
+                 '(or "a" "b" (or "c") (and "d") (or "e")))
+                '("a" "b" "c" (and "d") "e"))
+  (check-equal? (pattern-elements
+                 '(and "a" "b" (or "c") (and "d" (and "e")) "f"))
+                '("a" "b" (or "c") "d" "e" "f")))
 
 (define (valid-pattern? pattern-candidate)
   ;; Is a pattern-candidate a valid pattern?
@@ -198,13 +229,14 @@
                             ("ls" (or / "-l") *)
                             (and "ls" (or / "-l") *)
                             (and "ls" (or "-l" (and "-l" "-r")))
-                            (and "ls" (or / "-l") "x")))])
+                            (and "ls" (or / "-l") "x")
+                            (and "ls" (and "-l" (and *)))
+                            (and "ls" (or (and "-l" *)
+                                          (or "-l" "-r")))))])
     (check-true (valid-pattern? pattern)))
   (for ([bad (in-list '(1 (1) (x) ("ls" . "-l") *
                           (and and)
-                          (and "ls" or)
-                          (and "ls" (or / "-l") (and "ls"))
-                          (and "ls" (or "-l" (or "-d")))))])
+                          (and "ls" or)))])
     (check-false (valid-pattern? bad))))
 
 (define (valid-patterns? candidates)

@@ -1,6 +1,6 @@
 # Things to do for `warranted`
-## Patterns should be more explicit
-You can now say `(and "ls" (or "-l" "-r") ...)`.  It still needs to deal properly with things like `(and ... (and ...))`, which should compile to `(and ... ...)`.
+## Command specifications need to be rationalised
+Either incompatibly do away with the old ones, or the new explicit ones I think.
 ## Should `/` be `?`
 I prefer `/`, but, well, perhaps `(? ...)` reads better as a disjunction?
 ## What else is needed for specifications?
