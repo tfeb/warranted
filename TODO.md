@@ -1,4 +1,6 @@
 # Things to do for `warranted`
+## The command-specification-via-command code needs checked
+I think it's OK but it is not well-tested.
 ## Command specifications need to be rationalised
 Either incompatibly do away with the old ones, or the new explicit ones I think.
 ## Should `/` be `?`

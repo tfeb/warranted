@@ -3,6 +3,13 @@
 \#*\#
 .\#*
 
+# Scratch & temporary directories
+scratch/
+tmp/*
+
+# OSX noise
+.DS_Store
+
 # Ignore the binary & distribution
 /warranted
 /distribution/

@@ -11,7 +11,7 @@
 
 (require "low.rkt"
          "fsm.rkt"
-         "wcf.rkt"
+         "wcs.rkt"
          (only-in racket/system
                   system*/exit-code)
          (rename-in racket
@@ -120,6 +120,15 @@
                      (complain "~A ~A~%"
                                (exn-message e)
                                (exn:fail:bad-metafile-source e))
+                     (exit 2))]
+                  [exn:fail:command-error?
+                   (λ (e)
+                     (complain "~A exited with ~A~%"
+                               (exn-message e)
+                               (exn:fail:command-error-status e))
+                     (let ([e (exn:fail:command-error-stderr e)])
+                       (when (> (bytes-length e) 0)
+                         (complain "~A" (bytes->string/locale e))))
                      (exit 2))]
                   [exn?
                    (λ (e)

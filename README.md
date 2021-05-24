@@ -1,5 +1,5 @@
 # [Warranted commands](https://github.com/tfeb/warranted)
-\[**This documentation, and the utility itself, are currently in a rudimentary state: *caveat emptor*.**]
+\[**This documentation, and the utility itself, are currently in a fairly rudimentary state: *caveat emptor*.**]
 
 This is a primitive utility which allows you to 'warrant' certain commands using one or more configuration files.  It's like a tiny version of `sudo` except without the implication of SUID or most of the complexity, and probably without most of the security either.
 
@@ -19,23 +19,29 @@ In the case of programs where there is no GUI component such as cron jobs, it do
 
 So you need a wrapper of some kind which you can bless.  One obvious approach would be to bless `sudo`, but I didn't want to do that as it would mean I would need to maintain a `sudoers` file which might or might not get unilaterally overwritten by the system's one, and also there might be other things in it which I *don't* want to be blessed.
 
-Enter `warranted`: this reads one or more files with command descriptions in them, and checks a command line against it, running it if it matches.  If you install it in `/usr/local/bin`, then you can bless it (remember 'CMD-shift-.' to let the Finder see all files), and use it to run commands you are interested in.
+Enter `warranted`: this reads one or more sources of command descriptions, and checks a command line against these descriptions, running it if it matches.  If you install it in `/usr/local/bin`, then you can bless it (remember 'CMD-shift-.' to let the Finder see all files), and use it to run commands you are interested in.
 
-## Configuration files
-All configuration file syntax is standard [Racket](https://racket-lang.org/) syntax: everything is read with [`read`](https://docs.racket-lang.org/reference/Reading.html) wrapped with `call-with-default-reading-parameterization` and with the `read-accept-lang` and `read-accept-reader` parameters false.  There is exactly one form in any file (you can add others, but only the first will be read).
+## Configuration sources
+All configuration syntax is standard [Racket](https://racket-lang.org/) syntax: everything is read with [`read`](https://docs.racket-lang.org/reference/Reading.html) wrapped with `call-with-default-reading-parameterization` and with the `read-accept-lang` and `read-accept-reader` parameters false.  There is exactly one form in any source (you can add others, but only the first will be read).
 
-There are two sets of files:
+There are three sets of files:
 
-- meta files tell it which files of command specifications to read;
-- command specification files tell it what commands it can run.
+- meta files tell it the sources of command specifications to read;
+- command specification files contain command specifications which tell it what commands it can run;
+- command specification commands are programs which *print* command specifications.
 
 **Meta files** are searched for in a fixed set of locations in a fixed order and the first one found is read, only.  The fixed set of places is, in order:
 
 1. `/etc/warranted/meta.rktd`;
 2. `/usr/local/etc/warranted/meta.rktd`;
-3. `~/etc/warranted/meta.rktd` (`~` meaning 'user's home directory' un the usual way).
+3. `~/etc/warranted/meta.rktd` (`~` meaning 'user's home directory' in the usual way).
 
-If any of these files is found it should contain a single list of filenames: these are the command specification files to read.  So to make `warranted` be really fussy install a meta file in `/etc/warranted/meta.rktd` and put in that a single file or files which can be carefully controlled.  For instance the contents of `/etc/warranted/meta.rktd` might be
+If any of these files is found it should contain a single list.  Each entry in this list specifies a source of command specifications.  An entry may be either;
+
+- a filename, which specifies a command specification file to read;
+- a list of the form `(run <command> <argument> ...)`, which is a command to run with its arguments, which should print a set of command specifications to its standard output.
+
+To make `warranted` be really fussy install a meta file in `/etc/warranted/meta.rktd` and put in that a single file or files which can be carefully controlled.  For instance the contents of `/etc/warranted/meta.rktd` might be
 
 ```
 ("/etc/warranted/commands.rktd")
@@ -43,7 +49,9 @@ If any of these files is found it should contain a single list of filenames: the
 
 which will cause `warranted` to look *only* at `/etc/warranted/commands.rktd` for command specifications.
 
-**Command specification files** are looked for either wherever the meta file tells it to look or in a set of standard places:
+**Command specification sources** can therefore either be files containing command specifications, or commands which print command specifications  The syntax of command specifications is the same in either case.
+
+**Command specification files** are looked for either wherever the meta file tells it to look or in a set of standard places if no meta file is found.
 
 1. `/etc/warranted/commands.rktd`;
 2. `/usr/local/etc/warranted/commands.rktd`;
@@ -51,7 +59,25 @@ which will cause `warranted` to look *only* at `/etc/warranted/commands.rktd` fo
 
 All the files which are found are read, and they are combined into a single specification specifying what can be read.
 
-## The regretable history of command specifications
+**Command specification commands** are only looked for if there is a meta file which specifies them, as for instance
+
+```
+(run "/usr/local/sbin/get-warranted-commands"
+     "-s" "ldap")
+```
+
+In this case:
+
+1. if `/usr/local/sbin/get-warranted-commands` doesn't exist nothing happens;
+2. if it does exist it must be executable (it is an error if not, and `warranted` will exit) and it will be run with the specified arguments (not via the shell, so no globbing, environment variable substitution or other terrors);
+3. its exit code and standard output (and standard error in fact, for error reporting) will be captured;
+4. if it exits with a nonzero exit code then `warranted` will exit reporting that error (with a nonzero exit code in turn);
+5. otherwise, if it produces *no* output it is ignored;
+6. otherwise its standard output should contain a well-formed command specification list, just as a file would contain.
+
+The purpose of command specification commands is so that `warranted` can acquire command specifications from sources it does not understand, such as name services, without having to understand them: the command does that for it.
+
+## The regrettable history of command specifications
 In the first reasonable version, command specifications were lists of elements where nested lists were disjunctions which could in turn have command specifications inside them.  This meant you had to know the nesting level to know what you were looing at meant.  So in something like
 
 ```
@@ -180,12 +206,13 @@ $ echo $?
 ## Notes on security
 The main purpose of the thing is to evade the MacOS privacy controls without just giving up completely: it's not intended as a comprehensive solution to anything and in particular
 
-**I make no promise at all that `warranted` is even slightly secure: you use it entirely at your own risk.**
+> **I make no promise at all that `warranted` is even slightly secure: you use it entirely at your own risk.** – tfb
 
 Specific security notes.
 
 - `warranted` is only as secure as the Racket reader, which is probably not very secure.
 - The default configuration will let it read a file controlled by the user running it: it needs to be tied down with a meta file to stop that.
+- It knows nothing of file permissions, and in particular does no checking that, for instance `/usr/local/etc/warranted/meta.rktd` can't be written or replaced by the user running `warranted`.
 - *It's just a hack*: I wrote it in a few hours so I could make my cron jobs work, and that's all it's good for.
 
 If you care about security, read the code: it's not very big.
